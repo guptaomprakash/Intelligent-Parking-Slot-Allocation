@@ -1,21 +1,19 @@
 import streamlit as st
 import numpy as np
 import random
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 st.set_page_config(layout="wide")
-st.title("🚗 Smart Multi-Floor Parking AI System")
+st.title("🚗 Smart Multi-Floor Parking System")
 
 # =========================
 # PARKING STRUCTURE
 # =========================
 parking = {
-    "Ground (Bike)": {"type":"Bike", "slots":20},
+    "Ground Floor (Bike)": {"type":"Bike", "slots":20},
     "Floor 1 (Car)": {"type":"Car", "slots":10},
     "Floor 2 (Car)": {"type":"Car", "slots":10},
     "Floor 3 (Car)": {"type":"Car", "slots":10},
-    "Floor 4 (MiniTruck)": {"type":"Mini Truck", "slots":10}
+    "Floor 4 (Mini Truck)": {"type":"Mini Truck", "slots":10}
 }
 
 gates = ["Gate 1","Gate 2","Gate 3","Gate 4"]
@@ -42,7 +40,7 @@ vehicle = st.selectbox(
 )
 
 # =========================
-# FIND AVAILABLE SLOT
+# FIND SLOT FUNCTION
 # =========================
 def find_slot(vehicle):
 
@@ -54,6 +52,7 @@ def find_slot(vehicle):
 
     for floor in possible_floors:
         slots = st.session_state.occupancy[floor]
+
         for i,s in enumerate(slots):
             if s == 0:
                 gate = random.choice(gates)
@@ -62,43 +61,31 @@ def find_slot(vehicle):
     return None,None,None,0
 
 # =========================
-# PARK BUTTON
+# PARK VEHICLE BUTTON
 # =========================
 if st.button("🔍 Find Parking Slot"):
 
     floor,slot,gate,available = find_slot(vehicle)
 
     if floor is None:
-        st.error("❌ No Slot Available for this vehicle type")
+        st.error("❌ No Slot Available")
     else:
-        st.success("✔ Parking Found!")
+        st.success("✔ Parking Found")
 
         col1,col2,col3 = st.columns(3)
 
         col1.metric("🏢 Floor", floor)
-        col2.metric("🅿 Slot Number", slot)
-        col3.metric("🚪 Enter From", gate)
+        col2.metric("🅿 Slot", slot)
+        col3.metric("🚪 Enter Gate", gate)
 
         st.info(f"Available Slots on this floor: {available}")
 
-        # mark slot occupied
+        # Mark slot occupied
         st.session_state.occupancy[floor][slot-1] = 1
 
 # =========================
-# VISUALIZATION
+# PNG PARKING VIEW
 # =========================
-st.subheader("📊 Live Parking Occupancy")
-
-for floor,data in parking.items():
-
-    st.markdown(f"### {floor}")
-
-    grid = np.array(st.session_state.occupancy[floor]).reshape(1,-1)
-
-   # =========================
-# PNG BASED PARKING VIEW
-# =========================
-
 st.subheader("🅿 Live Parking View")
 
 for floor,data in parking.items():
@@ -111,11 +98,12 @@ for floor,data in parking.items():
 
     for i,slot in enumerate(slots):
 
+        # EMPTY SLOT
         if slot == 0:
             cols[i].image("empty.png", width=60)
 
+        # OCCUPIED SLOT
         else:
-            # choose image by vehicle type
             if data["type"] == "Bike":
                 cols[i].image("bike.png", width=60)
 
@@ -126,11 +114,4 @@ for floor,data in parking.items():
                 cols[i].image("truck.png", width=60)
 
     free = slots.count(0)
-    st.write(f"Available Slots: **{free}**")
-
-    ax.set_xticklabels(range(1,len(grid[0])+1))
-    ax.set_yticklabels(["Slots"])
-    st.pyplot(fig)
-
-    free = st.session_state.occupancy[floor].count(0)
     st.write(f"Available Slots: **{free}**")
