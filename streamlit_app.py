@@ -1,129 +1,107 @@
 import streamlit as st
 import numpy as np
 import random
-import time
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 st.set_page_config(layout="wide")
-st.title("🚗 Ultra Realistic Smart Parking Simulation")
+st.title("🚗 Smart Multi-Floor Parking AI System")
 
-# =====================================
-# PARKING CONFIG
-# =====================================
+# =========================
+# PARKING STRUCTURE
+# =========================
 parking = {
-    "Ground": {"type":"Bike","slots":20},
-    "Floor1": {"type":"Car","slots":10},
-    "Floor2": {"type":"Car","slots":10},
-    "Floor3": {"type":"Car","slots":10},
-    "Floor4": {"type":"Mini Truck","slots":10}
+    "Ground (Bike)": {"type":"Bike", "slots":20},
+    "Floor 1 (Car)": {"type":"Car", "slots":10},
+    "Floor 2 (Car)": {"type":"Car", "slots":10},
+    "Floor 3 (Car)": {"type":"Car", "slots":10},
+    "Floor 4 (MiniTruck)": {"type":"Mini Truck", "slots":10}
 }
 
 gates = ["Gate 1","Gate 2","Gate 3","Gate 4"]
 
-# =====================================
+# =========================
 # SESSION STATE
-# =====================================
+# =========================
 if "occupancy" not in st.session_state:
     st.session_state.occupancy = {}
-    for f,d in parking.items():
-        st.session_state.occupancy[f] = [0]*d["slots"]
 
-# =====================================
-# INPUT
-# =====================================
+    for floor,data in parking.items():
+        st.session_state.occupancy[floor] = np.random.randint(
+            0,2,data["slots"]
+        ).tolist()
+
+# =========================
+# INPUT SECTION
+# =========================
+st.subheader("🚘 Vehicle Entry")
+
 vehicle = st.selectbox(
     "Select Vehicle Type",
     ["Bike","Car","Mini Truck"]
 )
 
-# =====================================
-# VEHICLE ICON
-# =====================================
-def vehicle_icon(v):
-    if v=="Bike":
-        return "bike.png"
-    elif v=="Car":
-        return "car.png"
-    return "truck.png"
-
-# =====================================
-# FIND SLOT + NEAREST GATE
-# =====================================
+# =========================
+# FIND AVAILABLE SLOT
+# =========================
 def find_slot(vehicle):
+
+    possible_floors = []
 
     for floor,data in parking.items():
         if data["type"] == vehicle:
+            possible_floors.append(floor)
 
-            slots = st.session_state.occupancy[floor]
+    for floor in possible_floors:
+        slots = st.session_state.occupancy[floor]
+        for i,s in enumerate(slots):
+            if s == 0:
+                gate = random.choice(gates)
+                return floor, i+1, gate, slots.count(0)
 
-            for i,s in enumerate(slots):
-                if s == 0:
+    return None,None,None,0
 
-                    # simulate nearest gate logic
-                    gate = gates[i % 4]
-                    return floor,i,gate
-
-    return None,None,None
-
-# =====================================
-# ANIMATION ENGINE
-# =====================================
-def animate_movement(vehicle,floor,slot,gate):
-
-    icon = vehicle_icon(vehicle)
-    frame = st.empty()
-
-    for step in range(8):
-
-        with frame.container():
-
-            st.markdown(f"### 🚦 {vehicle} moving from {gate} → {floor} → Slot {slot+1}")
-
-            cols = st.columns(8)
-
-            for i in range(8):
-                if i == step:
-                    cols[i].image(icon,width=60)
-                else:
-                    cols[i].markdown("⬜")
-
-        time.sleep(0.4)
-
-    frame.empty()
-
-# =====================================
+# =========================
 # PARK BUTTON
-# =====================================
-if st.button("🚗 Start Simulation"):
+# =========================
+if st.button("🔍 Find Parking Slot"):
 
-    floor,slot,gate = find_slot(vehicle)
+    floor,slot,gate,available = find_slot(vehicle)
 
     if floor is None:
-        st.error("❌ No slot available")
+        st.error("❌ No Slot Available for this vehicle type")
     else:
+        st.success("✔ Parking Found!")
 
-        st.success(f"AI Selected → {floor} | Slot {slot+1} | {gate}")
+        col1,col2,col3 = st.columns(3)
 
-        animate_movement(vehicle,floor,slot,gate)
+        col1.metric("🏢 Floor", floor)
+        col2.metric("🅿 Slot Number", slot)
+        col3.metric("🚪 Enter From", gate)
 
-        st.session_state.occupancy[floor][slot]=1
+        st.info(f"Available Slots on this floor: {available}")
 
-        st.success("🎉 Vehicle Parked Successfully!")
+        # mark slot occupied
+        st.session_state.occupancy[floor][slot-1] = 1
 
-# =====================================
-# LIVE PARKING VISUAL
-# =====================================
-st.subheader("🅿 Live Parking Layout")
+# =========================
+# VISUALIZATION
+# =========================
+st.subheader("📊 Live Parking Occupancy")
 
 for floor,data in parking.items():
 
     st.markdown(f"### {floor}")
 
-    slots = st.session_state.occupancy[floor]
-    cols = st.columns(len(slots))
+    grid = np.array(st.session_state.occupancy[floor]).reshape(1,-1)
 
-    for i,s in enumerate(slots):
+    fig,ax = plt.subplots(figsize=(8,1.5))
+    sns.heatmap(grid,cmap="YlGnBu",cbar=False,
+                linewidths=1,ax=ax)
 
-        if s==0:
-            cols[i].success(f"S{i+1}")
-        else:
-            cols[i].image(vehicle_icon(data["type"]),width=45)
+    ax.set_xticklabels(range(1,len(grid[0])+1))
+    ax.set_yticklabels(["Slots"])
+    st.pyplot(fig)
+
+    free = st.session_state.occupancy[floor].count(0)
+    st.write(f"Available Slots: **{free}**")
