@@ -95,9 +95,38 @@ for floor,data in parking.items():
 
     grid = np.array(st.session_state.occupancy[floor]).reshape(1,-1)
 
-    fig,ax = plt.subplots(figsize=(8,1.5))
-    sns.heatmap(grid,cmap="YlGnBu",cbar=False,
-                linewidths=1,ax=ax)
+   # =========================
+# PNG BASED PARKING VIEW
+# =========================
+
+st.subheader("🅿 Live Parking View")
+
+for floor,data in parking.items():
+
+    st.markdown(f"### {floor}")
+
+    slots = st.session_state.occupancy[floor]
+
+    cols = st.columns(len(slots))
+
+    for i,slot in enumerate(slots):
+
+        if slot == 0:
+            cols[i].image("empty.png", width=60)
+
+        else:
+            # choose image by vehicle type
+            if data["type"] == "Bike":
+                cols[i].image("bike.png", width=60)
+
+            elif data["type"] == "Car":
+                cols[i].image("car.png", width=60)
+
+            elif data["type"] == "Mini Truck":
+                cols[i].image("truck.png", width=60)
+
+    free = slots.count(0)
+    st.write(f"Available Slots: **{free}**")
 
     ax.set_xticklabels(range(1,len(grid[0])+1))
     ax.set_yticklabels(["Slots"])
