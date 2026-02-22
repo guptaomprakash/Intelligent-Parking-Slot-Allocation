@@ -3,175 +3,105 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pandas as pd
-import time
 
 st.set_page_config(layout="wide")
-st.title("🚗 Intelligent Parking Slot Allocation")
+st.title("🚗 Smart Multi-Floor Parking AI System")
 
-# =============================
-# SIDEBAR SETTINGS
-# =============================
-st.sidebar.header("⚙ Simulation Settings")
+# =========================
+# PARKING STRUCTURE
+# =========================
+parking = {
+    "Ground (Bike)": {"type":"Bike", "slots":20},
+    "Floor 1 (Car)": {"type":"Car", "slots":10},
+    "Floor 2 (Car)": {"type":"Car", "slots":10},
+    "Floor 3 (Car)": {"type":"Car", "slots":10},
+    "Floor 4 (MiniTruck)": {"type":"Mini Truck", "slots":10}
+}
 
-FLOORS = st.sidebar.slider("Floors", 1, 5, 3)
-SLOTS_PER_FLOOR = st.sidebar.slider("Slots per Floor", 5, 20, 10)
-EPISODES = st.sidebar.slider("Training Episodes", 500, 5000, 2000)
-AUTO_SIM = st.sidebar.checkbox("Enable Live Simulation", True)
+gates = ["Gate 1","Gate 2","Gate 3","Gate 4"]
 
-TOTAL_SLOTS = FLOORS * SLOTS_PER_FLOOR
-
-ALPHA = 0.1
-GAMMA = 0.9
-EPSILON = 0.2
-
-# =============================
+# =========================
 # SESSION STATE
-# =============================
-if "Q_table" not in st.session_state:
-    st.session_state.Q_table = np.zeros((2**min(TOTAL_SLOTS,12), TOTAL_SLOTS))
+# =========================
+if "occupancy" not in st.session_state:
+    st.session_state.occupancy = {}
 
-if "rewards_rl" not in st.session_state:
-    st.session_state.rewards_rl = []
+    for floor,data in parking.items():
+        st.session_state.occupancy[floor] = np.random.randint(
+            0,2,data["slots"]
+        ).tolist()
 
-if "rewards_random" not in st.session_state:
-    st.session_state.rewards_random = []
+# =========================
+# INPUT SECTION
+# =========================
+st.subheader("🚘 Vehicle Entry")
 
-Q_table = st.session_state.Q_table
+vehicle = st.selectbox(
+    "Select Vehicle Type",
+    ["Bike","Car","Mini Truck"]
+)
 
-# =============================
-# FUNCTIONS
-# =============================
-def state_to_index(state):
-    state = state[:12]
-    return int("".join(map(str,state)),2)
+# =========================
+# FIND AVAILABLE SLOT
+# =========================
+def find_slot(vehicle):
 
-def get_reward(state, action):
-    return 10 if state[action]==0 else -10
+    possible_floors = []
 
-def choose_action(state_idx):
-    if random.random() < EPSILON:
-        return random.randint(0, TOTAL_SLOTS-1)
-    return np.argmax(Q_table[state_idx])
+    for floor,data in parking.items():
+        if data["type"] == vehicle:
+            possible_floors.append(floor)
 
-# =============================
-# TRAINING
-# =============================
-if st.button("🚀 Train AI Agent"):
+    for floor in possible_floors:
+        slots = st.session_state.occupancy[floor]
+        for i,s in enumerate(slots):
+            if s == 0:
+                gate = random.choice(gates)
+                return floor, i+1, gate, slots.count(0)
 
-    st.session_state.rewards_rl.clear()
-    st.session_state.rewards_random.clear()
+    return None,None,None,0
 
-    progress = st.progress(0)
+# =========================
+# PARK BUTTON
+# =========================
+if st.button("🔍 Find Parking Slot"):
 
-    for ep in range(EPISODES):
+    floor,slot,gate,available = find_slot(vehicle)
 
-        state = np.random.randint(0,2,TOTAL_SLOTS).tolist()
-        s_idx = state_to_index(state)
-
-        action = choose_action(s_idx)
-        reward = get_reward(state, action)
-
-        next_state = state.copy()
-        if next_state[action]==0:
-            next_state[action]=1
-
-        n_idx = state_to_index(next_state)
-
-        Q_table[s_idx,action] += ALPHA*(
-            reward + GAMMA*np.max(Q_table[n_idx]) - Q_table[s_idx,action]
-        )
-
-        st.session_state.rewards_rl.append(reward)
-
-        rand_action = random.randint(0,TOTAL_SLOTS-1)
-        st.session_state.rewards_random.append(
-            get_reward(state,rand_action)
-        )
-
-        progress.progress((ep+1)/EPISODES)
-
-    st.success("Training Completed ✔")
-
-# =============================
-# LIVE SIMULATION AREA
-# =============================
-st.subheader("🚘 Live Smart Parking Simulation")
-
-placeholder = st.empty()
-
-def run_simulation():
-
-    state = np.random.randint(0,2,TOTAL_SLOTS).tolist()
-    s_idx = state_to_index(state)
-
-    best_action = np.argmax(Q_table[s_idx])
-
-    grid = np.array(state).reshape(FLOORS,SLOTS_PER_FLOOR)
-
-    with placeholder.container():
-
-        colA,colB = st.columns([2,1])
-
-        with colA:
-            fig,ax = plt.subplots(figsize=(10,4))
-            sns.heatmap(grid,cmap="YlGnBu",cbar=False,linewidths=1,ax=ax)
-            ax.set_title("Parking Occupancy Heatmap")
-            st.pyplot(fig)
-
-        with colB:
-            floor = best_action // SLOTS_PER_FLOOR
-            slot = best_action % SLOTS_PER_FLOOR
-
-            occupied = sum(state)
-            free = TOTAL_SLOTS-occupied
-            efficiency = (free/TOTAL_SLOTS)*100
-
-            st.metric("🤖 AI Suggested Floor", floor+1)
-            st.metric("🚗 Suggested Slot", slot+1)
-            st.metric("📊 Efficiency %", f"{efficiency:.1f}")
-
-            if efficiency < 25:
-                st.error("⚠ High Congestion Predicted")
-            elif efficiency < 50:
-                st.warning("⚠ Medium Traffic")
-            else:
-                st.success("✔ Parking Flow Smooth")
-
-run_simulation()
-
-if AUTO_SIM:
-    for _ in range(5):
-        time.sleep(1)
-        run_simulation()
-
-# =============================
-# ANALYTICS
-# =============================
-st.subheader("📈 AI Performance Dashboard")
-
-if len(st.session_state.rewards_rl)>0:
-
-    df = pd.DataFrame({
-        "RL Agent": st.session_state.rewards_rl,
-        "Random": st.session_state.rewards_random
-    })
-
-    fig2,ax2 = plt.subplots(figsize=(10,4))
-    ax2.plot(df["RL Agent"],label="RL Agent")
-    ax2.plot(df["Random"],alpha=0.6,label="Random Strategy")
-    ax2.legend()
-    ax2.set_title("Learning Performance Comparison")
-    ax2.set_xlabel("Episodes")
-    ax2.set_ylabel("Reward")
-    st.pyplot(fig2)
-
-    avg_rl = np.mean(df["RL Agent"])
-    avg_rand = np.mean(df["Random"])
-
-    st.subheader("🧠 AI Smart Insights")
-
-    if avg_rl > avg_rand:
-        st.success("AI allocation strategy is smarter than random allocation.")
+    if floor is None:
+        st.error("❌ No Slot Available for this vehicle type")
     else:
-        st.warning("Increase training episodes for better learning.")
+        st.success("✔ Parking Found!")
+
+        col1,col2,col3 = st.columns(3)
+
+        col1.metric("🏢 Floor", floor)
+        col2.metric("🅿 Slot Number", slot)
+        col3.metric("🚪 Enter From", gate)
+
+        st.info(f"Available Slots on this floor: {available}")
+
+        # mark slot occupied
+        st.session_state.occupancy[floor][slot-1] = 1
+
+# =========================
+# VISUALIZATION
+# =========================
+st.subheader("📊 Live Parking Occupancy")
+
+for floor,data in parking.items():
+
+    st.markdown(f"### {floor}")
+
+    grid = np.array(st.session_state.occupancy[floor]).reshape(1,-1)
+
+    fig,ax = plt.subplots(figsize=(8,1.5))
+    sns.heatmap(grid,cmap="YlGnBu",cbar=False,
+                linewidths=1,ax=ax)
+
+    ax.set_xticklabels(range(1,len(grid[0])+1))
+    ax.set_yticklabels(["Slots"])
+    st.pyplot(fig)
+
+    free = st.session_state.occupancy[floor].count(0)
+    st.write(f"Available Slots: **{free}**")
