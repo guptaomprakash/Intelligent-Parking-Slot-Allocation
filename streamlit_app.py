@@ -2,6 +2,9 @@ import streamlit as st
 import numpy as np
 import random
 
+# =========================
+# PAGE SETTINGS
+# =========================
 st.set_page_config(layout="wide")
 st.title("🚗 Smart Multi-Floor Parking System")
 
@@ -9,24 +12,25 @@ st.title("🚗 Smart Multi-Floor Parking System")
 # PARKING STRUCTURE
 # =========================
 parking = {
-    "Ground Floor (Bike)": {"type":"Bike", "slots":20},
-    "Floor 1 (Car)": {"type":"Car", "slots":10},
-    "Floor 2 (Car)": {"type":"Car", "slots":10},
-    "Floor 3 (Car)": {"type":"Car", "slots":10},
-    "Floor 4 (Mini Truck)": {"type":"Mini Truck", "slots":10}
+    "Ground Floor (Bike)": {"type": "Bike", "slots": 20},
+    "Floor 1 (Car)": {"type": "Car", "slots": 10},
+    "Floor 2 (Car)": {"type": "Car", "slots": 10},
+    "Floor 3 (Car)": {"type": "Car", "slots": 10},
+    "Floor 4 (Mini Truck)": {"type": "Mini Truck", "slots": 10}
 }
 
-gates = ["Gate 1","Gate 2","Gate 3","Gate 4"]
+gates = ["Gate 1", "Gate 2", "Gate 3", "Gate 4"]
 
 # =========================
-# SESSION STATE
+# SAFE SESSION STATE INIT
 # =========================
 if "occupancy" not in st.session_state:
-    st.session_state.occupancy = {}
+    st.session_state["occupancy"] = {}
 
-    for floor,data in parking.items():
-        st.session_state.occupancy[floor] = np.random.randint(
-            0,2,data["slots"]
+for floor, data in parking.items():
+    if floor not in st.session_state["occupancy"]:
+        st.session_state["occupancy"][floor] = np.random.randint(
+            0, 2, data["slots"]
         ).tolist()
 
 # =========================
@@ -36,67 +40,69 @@ st.subheader("🚘 Vehicle Entry")
 
 vehicle = st.selectbox(
     "Select Vehicle Type",
-    ["Bike","Car","Mini Truck"]
+    ["Bike", "Car", "Mini Truck"]
 )
 
 # =========================
 # FIND SLOT FUNCTION
 # =========================
-def find_slot(vehicle):
+def find_slot(vehicle_type):
 
     possible_floors = []
 
-    for floor,data in parking.items():
-        if data["type"] == vehicle:
+    for floor, data in parking.items():
+        if data["type"] == vehicle_type:
             possible_floors.append(floor)
 
     for floor in possible_floors:
-        slots = st.session_state.occupancy[floor]
 
-        for i,s in enumerate(slots):
+        slots = st.session_state["occupancy"].get(floor, [])
+
+        for i, s in enumerate(slots):
             if s == 0:
                 gate = random.choice(gates)
-                return floor, i+1, gate, slots.count(0)
+                available = slots.count(0)
+                return floor, i + 1, gate, available
 
-    return None,None,None,0
+    return None, None, None, 0
 
 # =========================
 # PARK VEHICLE BUTTON
 # =========================
 if st.button("🔍 Find Parking Slot"):
 
-    floor,slot,gate,available = find_slot(vehicle)
+    floor, slot, gate, available = find_slot(vehicle)
 
     if floor is None:
-        st.error("❌ No Slot Available")
+        st.error("❌ No Slot Available for this vehicle type")
+
     else:
-        st.success("✔ Parking Found")
+        st.success("✔ Parking Found!")
 
-        col1,col2,col3 = st.columns(3)
-
-        col1.metric("🏢 Floor", floor)
-        col2.metric("🅿 Slot", slot)
-        col3.metric("🚪 Enter Gate", gate)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("🏢 Floor", floor)
+        c2.metric("🅿 Slot Number", slot)
+        c3.metric("🚪 Enter From", gate)
 
         st.info(f"Available Slots on this floor: {available}")
 
         # Mark slot occupied
-        st.session_state.occupancy[floor][slot-1] = 1
+        st.session_state["occupancy"][floor][slot - 1] = 1
 
 # =========================
 # PNG PARKING VIEW
 # =========================
 st.subheader("🅿 Live Parking View")
 
-for floor,data in parking.items():
+for floor, data in parking.items():
 
     st.markdown(f"### {floor}")
 
-    slots = st.session_state.occupancy[floor]
+    slots = st.session_state["occupancy"].get(floor, [])
 
     cols = st.columns(len(slots))
 
-    for i,slot in enumerate(slots):
+    for i, slot in enumerate(slots):
 
         # EMPTY SLOT
         if slot == 0:
